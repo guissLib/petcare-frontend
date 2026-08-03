@@ -11,6 +11,10 @@ type Provider = {
   acceptsHomeVisits: boolean;
 };
 
+type UserSession = { userId: string; email: string; name: string };
+type Pet = { id: string; ownerId: string; name: string; species: "dog" | "cat" | "bird" | "other"; breed?: string };
+type Booking = { id: string; petId: string; providerId: string; serviceType: string; scheduledAt: string; status: string; total: number; paymentMethod: string };
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000/api";
 const fallbackProviders: Provider[] = [
   { id: "provider_centro", name: "PetCare Centro", city: "Bogotá", address: "Calle 100 # 12-30", services: ["grooming", "veterinary", "walking", "home-visit"], acceptsHomeVisits: true },
@@ -39,6 +43,17 @@ function Icon({ name }: { name: "home" | "calendar" | "paw" | "bell" | "search" 
 }
 
 export default function Home() {
+  const [session, setSession] = useState<UserSession | null>(null);
+  const [email, setEmail] = useState("");
+  const [loginError, setLoginError] = useState("");
+  const [userId, setUserId] = useState("");
+  const [pets, setPets] = useState<Pet[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [petModalOpen, setPetModalOpen] = useState(false);
+  const [petError, setPetError] = useState("");
+  const [savingPet, setSavingPet] = useState(false);
+  const [bookingError, setBookingError] = useState("");
+  const [savingBooking, setSavingBooking] = useState(false);
   const [providers, setProviders] = useState<Provider[]>(fallbackProviders);
   const [activeService, setActiveService] = useState("all");
   const [city, setCity] = useState("Bogotá");
@@ -47,9 +62,41 @@ export default function Home() {
   const [notice, setNotice] = useState("");
 
   useEffect(() => {
+    const savedSession = window.localStorage.getItem("petcare-session");
+    if (!savedSession) return;
+    try {
+      const parsedSession = JSON.parse(savedSession) as UserSession & { userId?: string };
+      if (parsedSession.userId) {
+        setSession(parsedSession);
+        setUserId(parsedSession.userId);
+      } else {
+        window.localStorage.removeItem("petcare-session");
+      }
+    } catch {
+      window.localStorage.removeItem("petcare-session");
+    }
+  }, []);
+
+  useEffect(() => {
     fetch(`${API_URL}/providers`).then((response) => response.ok ? response.json() : Promise.reject())
       .then((data: Provider[]) => setProviders(data)).catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    if (!userId) return;
+    fetch(`${API_URL}/users/${userId}/pets`)
+      .then((response) => response.ok ? response.json() : Promise.reject())
+      .then((data: Pet[]) => setPets(data))
+      .catch(() => setPetError("No se pudieron cargar tus mascotas. Verifica que el backend esté activo."));
+  }, [userId]);
+
+  useEffect(() => {
+    if (!userId) return;
+    fetch(`${API_URL}/bookings?userId=${encodeURIComponent(userId)}`)
+      .then((response) => response.ok ? response.json() : Promise.reject())
+      .then((data: Booking[]) => setBookings(data))
+      .catch(() => undefined);
+  }, [userId]);
 
   const filteredProviders = useMemo(() => providers.filter((provider) =>
     (!city || provider.city === city) && (activeService === "all" || provider.services.includes(activeService)),
@@ -58,11 +105,96 @@ export default function Home() {
   const handleBooking = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setBookingProvider(null);
-    setNotice("¡Listo! Tu solicitud quedó preparada. Regístrate para confirmar la reserva.");
+    setNotice("¡Listo! Tu solicitud quedó preparada.");
     window.setTimeout(() => setNotice(""), 5000);
   };
 
-  const openBooking = () => setBookingProvider(filteredProviders[0] ?? fallbackProviders[0]);
+  const openBooking = (provider?: Provider) => {
+    setBookingError("");
+    if (!pets.length) {
+      setPetError("Agrega una mascota antes de crear una reserva.");
+      document.getElementById("pets")?.scrollIntoView({ behavior: "smooth" });
+      return;
+    }
+    setBookingProvider(provider ?? filteredProviders[0] ?? fallbackProviders[0]);
+  };
+
+  const handleBookingSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!bookingProvider || !userId) return;
+    setSavingBooking(true);
+    setBookingError("");
+    const formData = new FormData(event.currentTarget);
+    const scheduledAt = `${formData.get("date")}T${formData.get("time")}:00`;
+    try {
+      const response = await fetch(`${API_URL}/users/${userId}/bookings`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ petId: formData.get("petId"), providerId: bookingProvider.id, serviceType: formData.get("serviceType"), visitMode: formData.get("visitMode"), scheduledAt, notes: formData.get("notes"), paymentMethod: formData.get("paymentMethod"), total: 50000 }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(response.status === 404 ? "No existe un usuario con ese correo." : Array.isArray(data.message) ? data.message.join(", ") : data.message);
+      setBookingProvider(null);
+      setBookings((currentBookings) => [data, ...currentBookings]);
+      setNotice(`Reserva confirmada. Código: ${data.id}`);
+      window.setTimeout(() => setNotice(""), 6000);
+    } catch (error) {
+      setBookingError(error instanceof Error ? error.message : "No se pudo crear la reserva.");
+    } finally {
+      setSavingBooking(false);
+    }
+  };
+
+  const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) {
+      setLoginError("Ingresa tu correo electrónico.");
+      return;
+    }
+    try {
+      const response = await fetch(`${API_URL}/auth/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: normalizedEmail }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(Array.isArray(data.message) ? data.message.join(", ") : data.message);
+      const nextSession = { userId: data.id, email: data.email, name: data.name };
+      window.localStorage.setItem("petcare-session", JSON.stringify(nextSession));
+      setSession(nextSession);
+      setUserId(data.id);
+      setLoginError("");
+    } catch (error) {
+      setLoginError(error instanceof Error && error.message.startsWith("No existe") ? error.message : "No se pudo conectar con PetCare. Inicia el backend en http://localhost:3000.");
+    }
+  };
+
+  const handlePetSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setSavingPet(true);
+    setPetError("");
+    const formData = new FormData(event.currentTarget);
+    try {
+      const response = await fetch(`${API_URL}/users/${userId}/pets`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: formData.get("name"), species: formData.get("species"), breed: formData.get("breed") || undefined }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(Array.isArray(data.message) ? data.message.join(", ") : data.message);
+      setPets((currentPets) => [...currentPets, data]);
+      setPetModalOpen(false);
+      event.currentTarget.reset();
+    } catch (error) {
+      setPetError(error instanceof Error ? error.message : "No se pudo guardar la mascota.");
+    } finally {
+      setSavingPet(false);
+    }
+  };
+
+  const handleLogout = () => {
+    window.localStorage.removeItem("petcare-session");
+    setSession(null);
+    setUserId("");
+    setPets([]);
+    setBookings([]);
+    setEmail("");
+  };
+
+  const currentUser = session ?? { name: "", email: "" };
+  const serviceLabel = (serviceId: string) => services.find((service) => service.id === serviceId)?.label ?? serviceId;
+  const petName = (petId: string) => pets.find((pet) => pet.id === petId)?.name ?? "Mascota";
+  const providerName = (providerId: string) => providers.find((provider) => provider.id === providerId)?.name ?? "Proveedor";
+  const formatBookingDate = (date: string) => new Date(date).toLocaleString("es-BO", { dateStyle: "medium", timeStyle: "short" });
 
   return (
     <main className="app-shell">
@@ -76,24 +208,29 @@ export default function Home() {
         </nav>
         <div className="sidebar-bottom">
           <div className="help-card"><span>💡</span><strong>¿Necesitas ayuda?</strong><small>Estamos para ayudarte</small><button>Centro de ayuda <Icon name="arrow" /></button></div>
-          <div className="profile"><div className="avatar">GS</div><div><strong>Guisela S.</strong><small>Mi cuenta</small></div><span className="dots">•••</span></div>
+          <div className="profile"><div className="avatar">{currentUser.name.slice(0, 2).toUpperCase()}</div><div><strong>{currentUser.name}</strong><small>{currentUser.email}</small></div><button className="logout-button" onClick={handleLogout}>Salir</button></div>
         </div>
       </aside>
 
-      <section className="main-content">
-        <header className="topbar"><button className="mobile-menu" aria-label="Abrir menú">☰</button><div className="breadcrumb">Inicio <span>/</span> Dashboard</div><div className="top-actions"><button className="icon-button"><Icon name="bell" /><i /></button><div className="mini-avatar">GS</div></div></header>
+      <section className={activeTab === "home" ? "main-content" : "main-content viewing-page"}>
+        <header className="topbar"><button className="mobile-menu" aria-label="Abrir menú">☰</button><div className="breadcrumb">Inicio <span>/</span> Dashboard</div><div className="top-actions"><button className="icon-button"><Icon name="bell" /><i /></button><div className="mini-avatar">{currentUser.name.slice(0, 2).toUpperCase()}</div></div></header>
+        {activeTab === "calendar" && <section className="workspace-page"><div className="page-heading"><div><p className="eyebrow">MI ACTIVIDAD</p><h1>Mis reservas</h1><p className="muted">Consulta y revisa las reservas asociadas a tus mascotas.</p></div><button className="primary-button" onClick={() => openBooking()}><Icon name="plus" /> Nueva reserva</button></div>{bookings.length ? <div className="booking-list">{bookings.map((booking) => <article className="booking-card" key={booking.id}><div className="booking-card-icon">📅</div><div className="booking-card-main"><div><h3>{serviceLabel(booking.serviceType)}</h3><p>{petName(booking.petId)} · {providerName(booking.providerId)}</p></div><span className={`status status-${booking.status}`}>{booking.status === "confirmed" ? "Confirmada" : booking.status}</span><strong>{formatBookingDate(booking.scheduledAt)}</strong><small>{booking.paymentMethod === "online" ? "Pago en línea" : "Pago en el local"} · Bs {booking.total}</small></div></article>)}</div> : <div className="empty-page"><div>📅</div><h2>Aún no tienes reservas</h2><p>Elige un proveedor y agenda el cuidado que necesita tu mascota.</p><button className="primary-button" onClick={() => openBooking()}>Crear mi primera reserva <Icon name="arrow" /></button></div>}</section>}
+        {activeTab === "paw" && <section className="workspace-page"><div className="page-heading"><div><p className="eyebrow">TUS COMPAÑEROS</p><h1>Mis mascotas</h1><p className="muted">Aquí puedes ver y administrar las mascotas de tu cuenta.</p></div><button className="primary-button" onClick={() => { setPetError(""); setPetModalOpen(true); }}><Icon name="plus" /> Agregar mascota</button></div>{pets.length ? <div className="pet-list">{pets.map((pet) => <article className="pet-card" key={pet.id}><div className={`pet-card-avatar pet-${pet.species}`}>{pet.species === "cat" ? "🐱" : pet.species === "bird" ? "🐦" : pet.species === "dog" ? "🐶" : "🐾"}</div><div><h3>{pet.name}</h3><p>{pet.species === "dog" ? "Perro" : pet.species === "cat" ? "Gato" : pet.species === "bird" ? "Ave" : "Otro"}</p><small>{pet.breed || "Raza no especificada"}</small></div></article>)}</div> : <div className="empty-page"><div>🐾</div><h2>Aún no tienes mascotas</h2><p>Agrega tu primera mascota para poder reservar servicios.</p><button className="primary-button" onClick={() => setPetModalOpen(true)}><Icon name="plus" /> Agregar mascota</button></div>}</section>}
         <div className="content-wrap">
-          <div className="welcome-row"><div><p className="eyebrow">MI ESPACIO PETCARE</p><h1>Buenos días, Guisela <span>👋</span></h1><p className="muted">Todo lo que tus mascotas necesitan, en un solo lugar.</p></div><button className="primary-button" onClick={openBooking}><Icon name="plus" /> Nueva reserva</button></div>
+          <div className="welcome-row"><div><p className="eyebrow">MI ESPACIO PETCARE</p><h1>Buenos días, {currentUser.name} <span>👋</span></h1><p className="muted">Todo lo que tus mascotas necesitan, en un solo lugar.</p></div><button className="primary-button" onClick={() => openBooking()}><Icon name="plus" /> Nueva reserva</button></div>
           <section className="hero-card"><div className="hero-copy"><span className="pill">PARA TU PRÓXIMA VISITA</span><h2>El bienestar de tu mascota<br /><em>empieza aquí.</em></h2><p>Encuentra servicios confiables y agenda en minutos.</p><button className="white-button" onClick={() => document.getElementById("services")?.scrollIntoView({ behavior: "smooth" })}>Explorar servicios <Icon name="arrow" /></button></div><div className="hero-art"><div className="sun" /><div className="hero-paw">🐾</div><div className="plant plant-one">✿</div><div className="plant plant-two">❧</div></div></section>
-          <section className="quick-stats"><div className="stat"><span className="stat-icon peach-bg">📅</span><div><small>Próxima reserva</small><strong>Sin reservas próximas</strong><a href="#services">Agendar ahora <Icon name="arrow" /></a></div></div><div className="stat"><span className="stat-icon blue-bg">🐶</span><div><small>Mascotas registradas</small><strong>2 mascotas</strong><a href="#pets">Ver mis mascotas <Icon name="arrow" /></a></div></div><div className="stat"><span className="stat-icon mint-bg">🎁</span><div><small>Beneficio disponible</small><strong>10% de descuento</strong><a href="#services">Usar beneficio <Icon name="arrow" /></a></div></div></section>
+          <section className="quick-stats"><div className="stat"><span className="stat-icon peach-bg">📅</span><div><small>Próxima reserva</small><strong>Sin reservas próximas</strong><a href="#services">Agendar ahora <Icon name="arrow" /></a></div></div><div className="stat"><span className="stat-icon blue-bg">🐶</span><div><small>Mascotas registradas</small><strong>{pets.length} {pets.length === 1 ? "mascota" : "mascotas"}</strong><a href="#pets">Ver mis mascotas <Icon name="arrow" /></a></div></div><div className="stat"><span className="stat-icon mint-bg">🎁</span><div><small>Beneficio disponible</small><strong>10% de descuento</strong><a href="#services">Usar beneficio <Icon name="arrow" /></a></div></div></section>
           <section id="services" className="section-block"><div className="section-heading"><div><p className="eyebrow">CUIDADOS PARA ELLOS</p><h2>¿Qué necesita tu mascota?</h2></div><button className="text-button">Ver todos <Icon name="arrow" /></button></div><div className="service-grid">{services.map((service) => <button key={service.id} className={`service-card ${service.color}`} onClick={() => setActiveService(service.id)}><span className="service-emoji">{service.emoji}</span><strong>{service.label}</strong><small>Explorar <Icon name="arrow" /></small></button>)}</div></section>
           <section className="section-block provider-section"><div className="section-heading"><div><p className="eyebrow">SERVICIOS CERCA DE TI</p><h2>Proveedores destacados</h2></div><div className="filters"><label><Icon name="pin" /><select value={city} onChange={(event) => setCity(event.target.value)}><option>Bogotá</option><option>Medellín</option></select></label><button className="filter-button"><Icon name="search" /> Filtrar</button></div></div><div className="provider-grid">{filteredProviders.length ? filteredProviders.map((provider, index) => <article className="provider-card" key={provider.id}><div className={`provider-image provider-image-${index + 1}`}><span>{index === 0 ? "🐕" : "🐈"}</span><b>★ 4.{index ? "8" : "9"}</b></div><div className="provider-info"><div className="provider-title"><div><h3>{provider.name}</h3><p><Icon name="pin" /> {provider.address}</p></div><span className="verified">✓</span></div><div className="tags">{provider.services.slice(0, 2).map((service) => <span key={service}>{service === "grooming" ? "Peluquería" : service === "veterinary" ? "Veterinaria" : service === "walking" ? "Paseos" : "Guardería"}</span>)}</div><button className="outline-button" onClick={() => setBookingProvider(provider)}>Ver disponibilidad <Icon name="arrow" /></button></div></article>) : <div className="empty-state">No encontramos proveedores para este filtro. Prueba otra ciudad.</div>}</div></section>
-          <section id="pets" className="pets-banner"><div><p className="eyebrow">TUS COMPAÑEROS</p><h2>Cuida cada detalle de su salud.</h2><p>Ten sus vacunas y datos importantes siempre a la mano.</p><button className="dark-button">Gestionar mascotas <Icon name="arrow" /></button></div><div className="pet-stack"><span>🐶</span><span>🐱</span></div></section>
+          <section id="pets" className="pets-banner"><div><p className="eyebrow">TUS COMPAÑEROS</p><h2>Cuida cada detalle de su salud.</h2><p>{pets.length ? pets.map((pet) => pet.name).join(", ") : "Aún no tienes mascotas registradas."}</p><button className="dark-button" onClick={() => { setPetError(""); setPetModalOpen(true); }}>Agregar mascota <Icon name="plus" /></button></div><div className="pet-stack"><span>🐶</span><span>🐱</span></div></section>
+          {petError && <p className="api-error" role="alert">{petError}</p>}
         </div>
       </section>
       <nav className="mobile-nav">{[["home", "Inicio"], ["calendar", "Reservas"], ["paw", "Mascotas"], ["bell", "Avisos"]].map(([id, label]) => <button key={id} className={activeTab === id ? "active" : ""} onClick={() => setActiveTab(id)}><Icon name={id as "home"} />{label}</button>)}</nav>
       {notice && <div className="toast">✓ <span>{notice}</span><button onClick={() => setNotice("")}>×</button></div>}
-      {bookingProvider && <div className="modal-backdrop" onClick={() => setBookingProvider(null)}><div className="booking-modal" onClick={(event) => event.stopPropagation()}><button className="close-button" onClick={() => setBookingProvider(null)}><Icon name="close" /></button><p className="eyebrow">NUEVA RESERVA</p><h2>Agenda con {bookingProvider.name}</h2><p className="muted">Elige el servicio y el momento ideal para tu mascota.</p><form onSubmit={handleBooking}><label>Servicio<select required defaultValue={activeService === "all" ? "grooming" : activeService}>{services.filter((service) => bookingProvider.services.includes(service.id)).map((service) => <option key={service.id} value={service.id}>{service.label}</option>)}</select></label><div className="form-row"><label>Fecha<input required type="date" defaultValue={new Date().toISOString().slice(0, 10)} /></label><label>Hora<input required type="time" defaultValue="10:00" /></label></div><label>Notas (opcional)<textarea placeholder="Cuéntanos algo importante..." rows={3} /></label><button className="primary-button full-button" type="submit">Continuar con la reserva <Icon name="arrow" /></button></form></div></div>}
+      {bookingProvider && <div className="modal-backdrop" onClick={() => setBookingProvider(null)}><div className="booking-modal" onClick={(event) => event.stopPropagation()}><button className="close-button" onClick={() => setBookingProvider(null)}><Icon name="close" /></button><p className="eyebrow">NUEVA RESERVA</p><h2>Agenda con {bookingProvider.name}</h2><p className="muted">Elige el servicio y el momento ideal para tu mascota.</p><form onSubmit={handleBookingSubmit}><label>Mascota<select name="petId" required defaultValue={pets[0]?.id}>{pets.map((pet) => <option key={pet.id} value={pet.id}>{pet.name}</option>)}</select></label><label>Servicio<select name="serviceType" required defaultValue={activeService === "all" ? "grooming" : activeService}>{services.filter((service) => bookingProvider.services.includes(service.id)).map((service) => <option key={service.id} value={service.id}>{service.label}</option>)}</select></label><div className="form-row"><label>Fecha<input name="date" required type="date" defaultValue={new Date().toISOString().slice(0, 10)} /></label><label>Hora<input name="time" required type="time" defaultValue="10:00" /></label></div><label>Modalidad<select name="visitMode" required defaultValue={bookingProvider.acceptsHomeVisits ? "at-location" : "at-location"}><option value="at-location">En el local</option>{bookingProvider.acceptsHomeVisits && <option value="home-visit">Visita a domicilio</option>}</select></label><label>Pago<select name="paymentMethod" required defaultValue="at-location"><option value="at-location">Pagar en el local</option><option value="online">Pago en línea (demo)</option></select></label><label>Notas (opcional)<textarea name="notes" placeholder="Cuéntanos algo importante..." rows={3} /></label>{bookingError && <p className="login-error" role="alert">{bookingError}</p>}<button className="primary-button full-button" type="submit" disabled={savingBooking}>{savingBooking ? "Confirmando…" : "Confirmar reserva"} <Icon name="arrow" /></button></form></div></div>}
+      {!session && <div className="login-backdrop"><section className="login-card" aria-labelledby="login-title"><div className="login-brand"><span className="brand-mark">✦</span><span>pet<span>care</span></span></div><p className="eyebrow">ACCESO A PETCARE</p><h1 id="login-title">Entra a tu espacio</h1><p className="muted">Usa tu correo para identificarte y gestionar tus reservas y mascotas.</p><form onSubmit={handleLogin}><label htmlFor="login-email">Correo electrónico<input id="login-email" type="email" value={email} onChange={(event) => { setEmail(event.target.value); setLoginError(""); }} placeholder="tu@correo.com" autoComplete="email" required autoFocus /></label>{loginError && <p className="login-error" role="alert">{loginError}</p>}<button className="primary-button full-button" type="submit">Continuar <Icon name="arrow" /></button></form><small className="login-note">No necesitas crear una cuenta ni usar contraseña.</small></section></div>}
+      {petModalOpen && <div className="modal-backdrop" onClick={() => setPetModalOpen(false)}><section className="booking-modal pet-modal" onClick={(event) => event.stopPropagation()}><button className="close-button" onClick={() => setPetModalOpen(false)}><Icon name="close" /></button><p className="eyebrow">NUEVA MASCOTA</p><h2>Agrega a tu compañero</h2><p className="muted">Estos datos quedarán asociados a tu correo.</p><form onSubmit={handlePetSubmit}><label>Nombre<input name="name" required placeholder="Ej. Luna" /></label><label>Especie<select name="species" required defaultValue="dog"><option value="dog">Perro</option><option value="cat">Gato</option><option value="bird">Ave</option><option value="other">Otro</option></select></label><label>Raza (opcional)<input name="breed" placeholder="Ej. Mestizo" /></label>{petError && <p className="login-error" role="alert">{petError}</p>}<button className="primary-button full-button" type="submit" disabled={savingPet}>{savingPet ? "Guardando…" : "Guardar mascota"} <Icon name="arrow" /></button></form></section></div>}
     </main>
   );
 }
