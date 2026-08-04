@@ -13,7 +13,7 @@ type Provider = {
 
 type UserSession = { userId: string; email: string; name: string };
 type Pet = { id: string; ownerId: string; name: string; species: "dog" | "cat" | "bird" | "other"; breed?: string };
-type Booking = { id: string; petId: string; providerId: string; serviceType: string; scheduledAt: string; status: string; total: number; paymentMethod: string };
+type Booking = { id: string; petId: string; providerId: string; serviceType: string; scheduledAt: string; status: string; total: number; paymentMethod: string; payment?: { id: string } };
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000/api";
 const fallbackProviders: Provider[] = [
@@ -62,19 +62,23 @@ export default function Home() {
   const [notice, setNotice] = useState("");
 
   useEffect(() => {
-    const savedSession = window.localStorage.getItem("petcare-session");
-    if (!savedSession) return;
-    try {
-      const parsedSession = JSON.parse(savedSession) as UserSession & { userId?: string };
-      if (parsedSession.userId) {
-        setSession(parsedSession);
-        setUserId(parsedSession.userId);
-      } else {
+    const restoreSession = () => {
+      const savedSession = window.localStorage.getItem("petcare-session");
+      if (!savedSession) return;
+      try {
+        const parsedSession = JSON.parse(savedSession) as UserSession & { userId?: string };
+        if (parsedSession.userId) {
+          setSession(parsedSession);
+          setUserId(parsedSession.userId);
+        } else {
+          window.localStorage.removeItem("petcare-session");
+        }
+      } catch {
         window.localStorage.removeItem("petcare-session");
       }
-    } catch {
-      window.localStorage.removeItem("petcare-session");
-    }
+    };
+    const timer = window.setTimeout(restoreSession, 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
   useEffect(() => {
@@ -102,13 +106,6 @@ export default function Home() {
     (!city || provider.city === city) && (activeService === "all" || provider.services.includes(activeService)),
   ), [activeService, city, providers]);
 
-  const handleBooking = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setBookingProvider(null);
-    setNotice("¡Listo! Tu solicitud quedó preparada.");
-    window.setTimeout(() => setNotice(""), 5000);
-  };
-
   const openBooking = (provider?: Provider) => {
     setBookingError("");
     if (!pets.length) {
@@ -127,12 +124,26 @@ export default function Home() {
     const formData = new FormData(event.currentTarget);
     const scheduledAt = `${formData.get("date")}T${formData.get("time")}:00`;
     try {
-      const response = await fetch(`${API_URL}/users/${userId}/bookings`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ petId: formData.get("petId"), providerId: bookingProvider.id, serviceType: formData.get("serviceType"), visitMode: formData.get("visitMode"), scheduledAt, notes: formData.get("notes"), paymentMethod: formData.get("paymentMethod"), total: 50000 }) });
+      const response = await fetch(`${API_URL}/payments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ amount: 45000, method: formData.get("paymentMethod"), booking: { userId, petId: formData.get("petId"), providerId: bookingProvider.id, serviceType: formData.get("serviceType"), visitMode: formData.get("visitMode"), scheduledAt, notes: formData.get("notes") } }) });
       const data = await response.json();
-      if (!response.ok) throw new Error(response.status === 404 ? "No existe un usuario con ese correo." : Array.isArray(data.message) ? data.message.join(", ") : data.message);
+      if (!response.ok) throw new Error(Array.isArray(data.message) ? data.message.join(", ") : data.message);
+      if (data.bookingStatus !== "queued") throw new Error("Selecciona pago en línea para confirmar la reserva automáticamente.");
       setBookingProvider(null);
-      setBookings((currentBookings) => [data, ...currentBookings]);
-      setNotice(`Reserva confirmada. Código: ${data.id}`);
+      setNotice(`Pago confirmado. La reserva se está creando con ${data.reference}.`);
+      const syncBooking = async () => {
+        for (let attempt = 0; attempt < 6; attempt += 1) {
+          const bookingResponse = await fetch(`${API_URL}/bookings?paymentId=${encodeURIComponent(data.id)}`);
+          if (bookingResponse.ok) {
+            const createdBookings = await bookingResponse.json() as Booking[];
+            if (createdBookings.length) {
+              setBookings((currentBookings) => [...createdBookings, ...currentBookings.filter((booking) => booking.payment?.id !== data.id)]);
+              return;
+            }
+          }
+          await new Promise((resolve) => window.setTimeout(resolve, 500));
+        }
+      };
+      void syncBooking();
       window.setTimeout(() => setNotice(""), 6000);
     } catch (error) {
       setBookingError(error instanceof Error ? error.message : "No se pudo crear la reserva.");
@@ -228,7 +239,7 @@ export default function Home() {
       </section>
       <nav className="mobile-nav">{[["home", "Inicio"], ["calendar", "Reservas"], ["paw", "Mascotas"], ["bell", "Avisos"]].map(([id, label]) => <button key={id} className={activeTab === id ? "active" : ""} onClick={() => setActiveTab(id)}><Icon name={id as "home"} />{label}</button>)}</nav>
       {notice && <div className="toast">✓ <span>{notice}</span><button onClick={() => setNotice("")}>×</button></div>}
-      {bookingProvider && <div className="modal-backdrop" onClick={() => setBookingProvider(null)}><div className="booking-modal" onClick={(event) => event.stopPropagation()}><button className="close-button" onClick={() => setBookingProvider(null)}><Icon name="close" /></button><p className="eyebrow">NUEVA RESERVA</p><h2>Agenda con {bookingProvider.name}</h2><p className="muted">Elige el servicio y el momento ideal para tu mascota.</p><form onSubmit={handleBookingSubmit}><label>Mascota<select name="petId" required defaultValue={pets[0]?.id}>{pets.map((pet) => <option key={pet.id} value={pet.id}>{pet.name}</option>)}</select></label><label>Servicio<select name="serviceType" required defaultValue={activeService === "all" ? "grooming" : activeService}>{services.filter((service) => bookingProvider.services.includes(service.id)).map((service) => <option key={service.id} value={service.id}>{service.label}</option>)}</select></label><div className="form-row"><label>Fecha<input name="date" required type="date" defaultValue={new Date().toISOString().slice(0, 10)} /></label><label>Hora<input name="time" required type="time" defaultValue="10:00" /></label></div><label>Modalidad<select name="visitMode" required defaultValue={bookingProvider.acceptsHomeVisits ? "at-location" : "at-location"}><option value="at-location">En el local</option>{bookingProvider.acceptsHomeVisits && <option value="home-visit">Visita a domicilio</option>}</select></label><label>Pago<select name="paymentMethod" required defaultValue="at-location"><option value="at-location">Pagar en el local</option><option value="online">Pago en línea (demo)</option></select></label><label>Notas (opcional)<textarea name="notes" placeholder="Cuéntanos algo importante..." rows={3} /></label>{bookingError && <p className="login-error" role="alert">{bookingError}</p>}<button className="primary-button full-button" type="submit" disabled={savingBooking}>{savingBooking ? "Confirmando…" : "Confirmar reserva"} <Icon name="arrow" /></button></form></div></div>}
+      {bookingProvider && <div className="modal-backdrop" onClick={() => setBookingProvider(null)}><div className="booking-modal" onClick={(event) => event.stopPropagation()}><button className="close-button" onClick={() => setBookingProvider(null)}><Icon name="close" /></button><p className="eyebrow">NUEVA RESERVA</p><h2>Agenda con {bookingProvider.name}</h2><p className="muted">Primero confirmaremos tu pago y después crearemos la reserva.</p><form onSubmit={handleBookingSubmit}><label>Mascota<select name="petId" required defaultValue={pets[0]?.id}>{pets.map((pet) => <option key={pet.id} value={pet.id}>{pet.name}</option>)}</select></label><label>Servicio<select name="serviceType" required defaultValue={activeService === "all" ? "grooming" : activeService}>{services.filter((service) => bookingProvider.services.includes(service.id)).map((service) => <option key={service.id} value={service.id}>{service.label}</option>)}</select></label><div className="form-row"><label>Fecha<input name="date" required type="date" defaultValue={new Date().toISOString().slice(0, 10)} /></label><label>Hora<input name="time" required type="time" defaultValue="10:00" /></label></div><label>Modalidad<select name="visitMode" required defaultValue="at-location"><option value="at-location">En el local</option>{bookingProvider.acceptsHomeVisits && <option value="home-visit">Visita a domicilio</option>}</select></label><label>Pago<select name="paymentMethod" required defaultValue="online"><option value="online">Pago en línea</option><option value="at-location">Pagar en el local</option></select></label><label>Notas (opcional)<textarea name="notes" placeholder="Cuéntanos algo importante..." rows={3} /></label>{bookingError && <p className="login-error" role="alert">{bookingError}</p>}<button className="primary-button full-button" type="submit" disabled={savingBooking}>{savingBooking ? "Confirmando pago…" : "Pagar y reservar"} <Icon name="arrow" /></button></form></div></div>}
       {!session && <div className="login-backdrop"><section className="login-card" aria-labelledby="login-title"><div className="login-brand"><span className="brand-mark">✦</span><span>pet<span>care</span></span></div><p className="eyebrow">ACCESO A PETCARE</p><h1 id="login-title">Entra a tu espacio</h1><p className="muted">Usa tu correo para identificarte y gestionar tus reservas y mascotas.</p><form onSubmit={handleLogin}><label htmlFor="login-email">Correo electrónico<input id="login-email" type="email" value={email} onChange={(event) => { setEmail(event.target.value); setLoginError(""); }} placeholder="tu@correo.com" autoComplete="email" required autoFocus /></label>{loginError && <p className="login-error" role="alert">{loginError}</p>}<button className="primary-button full-button" type="submit">Continuar <Icon name="arrow" /></button></form><small className="login-note">No necesitas crear una cuenta ni usar contraseña.</small></section></div>}
       {petModalOpen && <div className="modal-backdrop" onClick={() => setPetModalOpen(false)}><section className="booking-modal pet-modal" onClick={(event) => event.stopPropagation()}><button className="close-button" onClick={() => setPetModalOpen(false)}><Icon name="close" /></button><p className="eyebrow">NUEVA MASCOTA</p><h2>Agrega a tu compañero</h2><p className="muted">Estos datos quedarán asociados a tu correo.</p><form onSubmit={handlePetSubmit}><label>Nombre<input name="name" required placeholder="Ej. Luna" /></label><label>Especie<select name="species" required defaultValue="dog"><option value="dog">Perro</option><option value="cat">Gato</option><option value="bird">Ave</option><option value="other">Otro</option></select></label><label>Raza (opcional)<input name="breed" placeholder="Ej. Mestizo" /></label>{petError && <p className="login-error" role="alert">{petError}</p>}<button className="primary-button full-button" type="submit" disabled={savingPet}>{savingPet ? "Guardando…" : "Guardar mascota"} <Icon name="arrow" /></button></form></section></div>}
     </main>
