@@ -1,36 +1,51 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# PetCare Frontend
 
-## Getting Started
+Frontend responsive de PetCare Home Services construido con Next.js App Router.
 
-First, run the development server:
+## Requisitos
+
+- Node.js 20 o superior.
+- El backend NestJS levantado y con sus migraciones ejecutadas.
+
+## Configuración
+
+Por defecto el cliente usa `http://localhost:3005/api`, que es el puerto
+predeterminado del backend. Para cambiarlo, crea `.env.local`:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+NEXT_PUBLIC_API_URL=http://localhost:3005/api
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Desarrollo
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm install
+npm run dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Abre `http://localhost:3000`. Puedes crear una cuenta o iniciar sesión desde
+`/login`. El backend verifica la contraseña con scrypt y devuelve un JWT; el
+frontend lo usa como Bearer token para las solicitudes protegidas. También
+puedes registrar una cuenta de proveedor; su panel permite consultar reservas
+de clientes y avanzar los estados `confirmed` → `in-progress` → `completed` o
+rechazar una reserva.
+Para producción conviene reemplazar el almacenamiento local por una cookie
+`httpOnly` gestionada por el backend.
 
-## Learn More
+## Rutas principales
 
-To learn more about Next.js, take a look at the following resources:
+- `/dashboard`: resumen, servicios y proveedores destacados.
+- `/pets`: mascotas y registros de vacunación mediante URL de documento.
+- `/providers`: filtros por ciudad y servicio.
+- `/providers/:providerId`: perfil y disponibilidad.
+- `/bookings/new`: pago simulado y creación de reserva.
+- `/bookings`: historial y estados de reservas.
+- `/notifications`: confirmaciones y recordatorios del backend.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Validación
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm run lint
+npm run typecheck
+npm run build
+```
