@@ -17,9 +17,11 @@ import { EmptyState, ErrorState, LoadingState } from "@/components/ui/states";
 export function BookingsView({
   created = false,
   paymentPending = false,
+  confirmationPending = false,
 }: {
   created?: boolean;
   paymentPending?: boolean;
+  confirmationPending?: boolean;
 }) {
   const { session } = usePetcareSession();
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -31,14 +33,16 @@ export function BookingsView({
   const [updatingId, setUpdatingId] = useState("");
   const isProvider = session?.role === "provider";
 
-  const loadBookings = useCallback(async () => {
+  const loadBookings = useCallback(async (showLoading = true) => {
     if (!session) return;
     if (isProvider && !session.providerId) {
       setError("No encontramos el proveedor asociado a esta cuenta.");
       setLoading(false);
       return;
     }
-    setLoading(true);
+    if (showLoading) {
+      setLoading(true);
+    }
     setError("");
     try {
       const petsRequest = isProvider
@@ -63,7 +67,9 @@ export function BookingsView({
           : "No se pudieron cargar tus reservas.",
       );
     } finally {
-      setLoading(false);
+      if (showLoading) {
+        setLoading(false);
+      }
     }
   }, [isProvider, session]);
 
@@ -71,6 +77,19 @@ export function BookingsView({
     const timer = window.setTimeout(() => void loadBookings(), 0);
     return () => window.clearTimeout(timer);
   }, [loadBookings]);
+
+  const hasPendingConfirmation = useMemo(
+    () => bookings.some((booking) => booking.status === "pending-confirmation"),
+    [bookings],
+  );
+
+  useEffect(() => {
+    if (!session || !hasPendingConfirmation) return;
+    const timer = window.setInterval(() => {
+      void loadBookings(false);
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [hasPendingConfirmation, loadBookings, session]);
 
   const visibleBookings = useMemo(
     () =>
@@ -157,6 +176,16 @@ export function BookingsView({
         </div>
       )}
 
+      {confirmationPending && (
+        <div className="info-banner" role="status">
+          <Icon name="clock" />
+          <span>
+            Tu pago fue aprobado. La reserva está pendiente de confirmación y
+            se actualizará automáticamente cuando Booking procese el evento.
+          </span>
+        </div>
+      )}
+
       {error && (
         <ErrorState message={error} onRetry={() => void loadBookings()} />
       )}
@@ -173,6 +202,9 @@ export function BookingsView({
               <option value="all">Todas</option>
               <option value="confirmed">Confirmadas</option>
               <option value="pending">Pendientes</option>
+              <option value="pending-confirmation">
+                Pendientes de confirmación
+              </option>
               <option value="in-progress">En progreso</option>
               <option value="completed">Completadas</option>
               <option value="cancelled">Canceladas</option>

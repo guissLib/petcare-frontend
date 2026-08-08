@@ -1002,6 +1002,7 @@ button:disabled {
 
 .next-booking-note,
 .success-banner,
+.info-banner,
 .api-note {
   display: flex;
   align-items: center;
@@ -1555,7 +1556,8 @@ button:disabled {
   background: #fff0eb;
 }
 
-.status-pending {
+.status-pending,
+.status-pending-confirmation {
   color: #8a6d36;
   background: #fff7df;
 }
@@ -1576,7 +1578,18 @@ button:disabled {
   color: #43815b;
 }
 
+.info-banner {
+  color: #9a681b;
+  background: #fff7e8;
+  border-color: #efd7a6;
+}
+
 .success-banner .icon {
+  width: 18px;
+  height: 18px;
+}
+
+.info-banner .icon {
   width: 18px;
   height: 18px;
 }

@@ -60,6 +60,7 @@ export const speciesLabels: Record<PetSpecies, string> = {
 
 export const statusLabels: Record<BookingStatus, string> = {
   pending: "Pendiente de pago",
+  "pending-confirmation": "Pendiente de confirmación",
   confirmed: "Confirmada",
   rejected: "Rechazada",
   "in-progress": "En progreso",

@@ -11,6 +11,7 @@ export type VisitMode = "pickup-dropoff" | "home-visit" | "at-location";
 export type PaymentMethod = "online" | "at-location";
 export type BookingStatus =
   | "pending"
+  | "pending-confirmation"
   | "confirmed"
   | "rejected"
   | "in-progress"
@@ -173,6 +174,7 @@ export type CheckoutFlowStatus =
 export interface BookingPaymentResult {
   booking: Booking;
   payment: Payment;
+  confirmationStatus?: "pending-confirmation" | "confirmed";
 }
 
 export interface MapGeocodeResult {

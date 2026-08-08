@@ -112,7 +112,11 @@ export function CheckoutView({ bookingId }: { bookingId: string }) {
         );
         return;
       }
-      router.replace(`/bookings/success?bookingId=${booking.id}`);
+      router.replace(
+        `/bookings?confirmation=pending&bookingId=${encodeURIComponent(
+          booking.id,
+        )}`,
+      );
     } catch (cause) {
       setStatus("failed");
       setError(
