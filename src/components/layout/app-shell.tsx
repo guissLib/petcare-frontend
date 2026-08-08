@@ -8,17 +8,23 @@ import { Icon, type IconName } from "@/components/icon";
 import { usePetcareSession } from "@/hooks/use-petcare-session";
 import { initials } from "@/lib/format";
 
-const ownerNavigation: Array<{ href: string; label: string; icon: IconName }> = [
-  { href: "/dashboard", label: "Inicio", icon: "home" },
-  { href: "/bookings", label: "Mis reservas", icon: "calendar" },
-  { href: "/pets", label: "Mis mascotas", icon: "paw" },
-  { href: "/providers", label: "Proveedores", icon: "pin" },
-  { href: "/notifications", label: "Notificaciones", icon: "bell" },
-];
+const ownerNavigation: Array<{ href: string; label: string; icon: IconName }> =
+  [
+    { href: "/dashboard", label: "Inicio", icon: "home" },
+    { href: "/bookings", label: "Mis reservas", icon: "calendar" },
+    { href: "/pets", label: "Mis mascotas", icon: "paw" },
+    { href: "/providers", label: "Proveedores", icon: "pin" },
+    { href: "/notifications", label: "Notificaciones", icon: "bell" },
+  ];
 
-const providerNavigation: Array<{ href: string; label: string; icon: IconName }> = [
+const providerNavigation: Array<{
+  href: string;
+  label: string;
+  icon: IconName;
+}> = [
   { href: "/dashboard", label: "Resumen", icon: "home" },
   { href: "/bookings", label: "Reservas de clientes", icon: "calendar" },
+  { href: "/promotions", label: "Mis promociones", icon: "tag" },
   { href: "/notifications", label: "Notificaciones", icon: "bell" },
 ];
 
@@ -28,6 +34,9 @@ const pageNames: Record<string, string> = {
   "/pets": "Mis mascotas",
   "/providers": "Proveedores",
   "/notifications": "Notificaciones",
+  "/promotions": "Mis promociones",
+  "/checkout": "Pago seguro",
+  "/bookings/success": "Reserva exitosa",
 };
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -63,7 +72,11 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="app-shell">
       <aside className={mobileMenuOpen ? "sidebar open" : "sidebar"}>
-        <Link className="brand" href="/dashboard" onClick={() => setMobileMenuOpen(false)}>
+        <Link
+          className="brand"
+          href="/dashboard"
+          onClick={() => setMobileMenuOpen(false)}
+        >
           <span className="brand-mark">✦</span>
           <span>
             pet<span>care</span>
@@ -74,7 +87,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           {navigation.map((item) => {
             const active =
               pathname === item.href ||
-              (item.href !== "/dashboard" && pathname.startsWith(`${item.href}/`));
+              (item.href !== "/dashboard" &&
+                pathname.startsWith(`${item.href}/`));
             return (
               <Link
                 className={active ? "nav-item active" : "nav-item"}
@@ -84,7 +98,9 @@ export function AppShell({ children }: { children: ReactNode }) {
               >
                 <Icon name={item.icon} />
                 <span>{item.label}</span>
-                {item.href === "/notifications" && <b className="notification-dot">!</b>}
+                {item.href === "/notifications" && (
+                  <b className="notification-dot">!</b>
+                )}
               </Link>
             );
           })}
@@ -104,7 +120,11 @@ export function AppShell({ children }: { children: ReactNode }) {
               <strong>{session.name}</strong>
               <small>{session.email}</small>
             </div>
-            <button className="logout-button" onClick={logout} title="Cerrar sesión">
+            <button
+              className="logout-button"
+              onClick={logout}
+              title="Cerrar sesión"
+            >
               <Icon name="logout" />
             </button>
           </div>
@@ -132,7 +152,11 @@ export function AppShell({ children }: { children: ReactNode }) {
             Inicio <span>/</span> {pageName}
           </div>
           <div className="top-actions">
-            <Link className="icon-button" href="/notifications" aria-label="Ver notificaciones">
+            <Link
+              className="icon-button"
+              href="/notifications"
+              aria-label="Ver notificaciones"
+            >
               <Icon name="bell" />
               <i />
             </Link>
@@ -146,9 +170,14 @@ export function AppShell({ children }: { children: ReactNode }) {
         {navigation.slice(0, 4).map((item) => {
           const active =
             pathname === item.href ||
-            (item.href !== "/dashboard" && pathname.startsWith(`${item.href}/`));
+            (item.href !== "/dashboard" &&
+              pathname.startsWith(`${item.href}/`));
           return (
-            <Link className={active ? "active" : ""} href={item.href} key={item.href}>
+            <Link
+              className={active ? "active" : ""}
+              href={item.href}
+              key={item.href}
+            >
               <Icon name={item.icon} />
               {item.label}
             </Link>

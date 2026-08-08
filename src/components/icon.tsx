@@ -15,7 +15,8 @@ export type IconName =
   | "chevron"
   | "shield"
   | "clock"
-  | "check";
+  | "check"
+  | "tag";
 
 const paths: Record<IconName, string> = {
   home: "M3 10.5 12 3l9 7.5M5.5 9v10h13V9M9 19v-6h6v6",
@@ -34,6 +35,7 @@ const paths: Record<IconName, string> = {
   shield: "M12 3 20 6v5c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6l8-3Z",
   clock: "M12 7v5l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z",
   check: "m5 12 4 4L19 6",
+  tag: "m20 13-7 7-10-10V4h6l10 9ZM7.5 7.5h.01",
 };
 
 export function Icon({

@@ -14,7 +14,13 @@ import {
 import type { Booking, Pet, Provider } from "@/types/petcare";
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/states";
 
-export function BookingsView({ created = false }: { created?: boolean }) {
+export function BookingsView({
+  created = false,
+  paymentPending = false,
+}: {
+  created?: boolean;
+  paymentPending?: boolean;
+}) {
   const { session } = usePetcareSession();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [pets, setPets] = useState<Pet[]>([]);
@@ -35,13 +41,16 @@ export function BookingsView({ created = false }: { created?: boolean }) {
     setLoading(true);
     setError("");
     try {
+      const petsRequest = isProvider
+        ? Promise.resolve<Pet[]>([])
+        : petcareApi.listPets(session.userId);
       const [nextBookings, nextPets, nextProviders] = await Promise.all([
         petcareApi.listBookings(
           isProvider
             ? { providerId: session.providerId }
             : { userId: session.userId },
         ),
-        petcareApi.listPets(session.userId),
+        petsRequest,
         petcareApi.listProviders(),
       ]);
       setBookings(nextBookings);
@@ -77,7 +86,8 @@ export function BookingsView({ created = false }: { created?: boolean }) {
   const petName = (petId: string) =>
     pets.find((pet) => pet.id === petId)?.name ?? "Mascota";
   const providerName = (providerId: string) =>
-    providers.find((provider) => provider.id === providerId)?.name ?? "Proveedor";
+    providers.find((provider) => provider.id === providerId)?.name ??
+    "Proveedor";
 
   async function updateStatus(bookingId: string, status: Booking["status"]) {
     setUpdatingId(bookingId);
@@ -86,7 +96,11 @@ export function BookingsView({ created = false }: { created?: boolean }) {
       const updatedBooking = await petcareApi.updateBookingStatus(bookingId, {
         status,
         ...(status === "rejected"
-          ? { reason: window.prompt("Motivo del rechazo") || "Requisitos no cumplidos" }
+          ? {
+              reason:
+                window.prompt("Motivo del rechazo") ||
+                "Requisitos no cumplidos",
+            }
           : {}),
       });
       setBookings((current) =>
@@ -135,18 +149,27 @@ export function BookingsView({ created = false }: { created?: boolean }) {
       {created && (
         <div className="success-banner" role="status">
           <Icon name="check" />
-          <span>Tu pago fue registrado y la reserva fue creada correctamente.</span>
+          <span>
+            {paymentPending
+              ? "Tu reserva fue creada. El pago se realizará en el local."
+              : "Tu reserva fue creada correctamente."}
+          </span>
         </div>
       )}
 
-      {error && <ErrorState message={error} onRetry={() => void loadBookings()} />}
+      {error && (
+        <ErrorState message={error} onRetry={() => void loadBookings()} />
+      )}
 
       {!error && bookings.length > 0 && (
         <div className="booking-toolbar">
           <span>{bookings.length} reservas</span>
           <label>
             Filtrar por estado
-            <select value={filter} onChange={(event) => setFilter(event.target.value)}>
+            <select
+              value={filter}
+              onChange={(event) => setFilter(event.target.value)}
+            >
               <option value="all">Todas</option>
               <option value="confirmed">Confirmadas</option>
               <option value="pending">Pendientes</option>
@@ -162,7 +185,9 @@ export function BookingsView({ created = false }: { created?: boolean }) {
       {!error && bookings.length === 0 && (
         <EmptyState
           emoji="📅"
-          title={isProvider ? "Aún no tienes reservas" : "Aún no tienes reservas"}
+          title={
+            isProvider ? "Aún no tienes reservas" : "Aún no tienes reservas"
+          }
           description={
             isProvider
               ? "Cuando un cliente reserve tus servicios, aparecerá aquí."
@@ -189,14 +214,18 @@ export function BookingsView({ created = false }: { created?: boolean }) {
       {!error && visibleBookings.length > 0 && (
         <div className="booking-list">
           {visibleBookings.map((booking) => (
-            <article className="booking-card booking-card-detailed" key={booking.id}>
+            <article
+              className="booking-card booking-card-detailed"
+              key={booking.id}
+            >
               <div className="booking-card-icon">📅</div>
               <div className="booking-card-main">
                 <div>
                   <p className="eyebrow">{formatDate(booking.scheduledAt)}</p>
                   <h2>{serviceLabel(booking.serviceType)}</h2>
                   <p>
-                    {petName(booking.petId)} · {providerName(booking.providerId)}
+                    {petName(booking.petId)} ·{" "}
+                    {providerName(booking.providerId)}
                   </p>
                 </div>
                 <span className={`status status-${booking.status}`}>
@@ -209,12 +238,31 @@ export function BookingsView({ created = false }: { created?: boolean }) {
                       : "Pago en el local"}
                   </span>
                   <strong>{formatCurrency(booking.total)}</strong>
+                  {booking.discountAmount > 0 && (
+                    <del>{formatCurrency(booking.originalTotal)}</del>
+                  )}
                 </div>
                 <small>
                   {booking.payment?.reference
                     ? `Referencia ${booking.payment.reference}`
                     : "Pago asociado a la reserva"}
                 </small>
+                <small>
+                  {booking.payment?.status === "paid"
+                    ? "Pago aprobado"
+                    : booking.payment?.status === "failed"
+                      ? "Pago rechazado"
+                      : "Pago pendiente"}
+                </small>
+                {booking.status === "pending" &&
+                  booking.paymentMethod === "online" && (
+                    <Link
+                      className="outline-button compact-button"
+                      href={`/checkout?bookingId=${encodeURIComponent(booking.id)}`}
+                    >
+                      Continuar pago
+                    </Link>
+                  )}
                 {booking.rejectionReason && (
                   <p className="rejection-note">
                     Motivo de rechazo: {booking.rejectionReason}
@@ -227,14 +275,18 @@ export function BookingsView({ created = false }: { created?: boolean }) {
                         <button
                           className="outline-button compact-button"
                           disabled={updatingId === booking.id}
-                          onClick={() => void updateStatus(booking.id, "in-progress")}
+                          onClick={() =>
+                            void updateStatus(booking.id, "in-progress")
+                          }
                         >
                           Iniciar servicio
                         </button>
                         <button
                           className="danger-button"
                           disabled={updatingId === booking.id}
-                          onClick={() => void updateStatus(booking.id, "rejected")}
+                          onClick={() =>
+                            void updateStatus(booking.id, "rejected")
+                          }
                         >
                           Rechazar
                         </button>
@@ -244,7 +296,9 @@ export function BookingsView({ created = false }: { created?: boolean }) {
                       <button
                         className="primary-button compact-button"
                         disabled={updatingId === booking.id}
-                        onClick={() => void updateStatus(booking.id, "completed")}
+                        onClick={() =>
+                          void updateStatus(booking.id, "completed")
+                        }
                       >
                         Marcar completada
                       </button>

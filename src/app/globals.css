@@ -85,7 +85,10 @@ button:disabled {
   gap: 9px;
   width: fit-content;
   color: var(--ink);
-  font: 800 23px Arial, Helvetica, sans-serif;
+  font:
+    800 23px Arial,
+    Helvetica,
+    sans-serif;
   letter-spacing: -1.2px;
   text-decoration: none;
   margin: 0 14px 70px;
@@ -356,7 +359,10 @@ button:disabled {
 .welcome-row h1,
 .page-heading h1 {
   margin: 0;
-  font: 700 clamp(25px, 2.3vw, 34px) Arial, Helvetica, sans-serif;
+  font:
+    700 clamp(25px, 2.3vw, 34px) Arial,
+    Helvetica,
+    sans-serif;
   letter-spacing: -1.2px;
 }
 
@@ -387,7 +393,10 @@ button:disabled {
   font-size: 12px;
   font-weight: 700;
   text-decoration: none;
-  transition: transform 0.2s, opacity 0.2s, background 0.2s;
+  transition:
+    transform 0.2s,
+    opacity 0.2s,
+    background 0.2s;
 }
 
 .primary-button:hover,
@@ -448,7 +457,10 @@ button:disabled {
 
 .hero-card h2 {
   margin: 17px 0 8px;
-  font: 700 clamp(24px, 3vw, 35px) Arial, Helvetica, sans-serif;
+  font:
+    700 clamp(24px, 3vw, 35px) Arial,
+    Helvetica,
+    sans-serif;
   line-height: 1.25;
   letter-spacing: -1.5px;
 }
@@ -589,7 +601,10 @@ button:disabled {
 .section-heading h2,
 .pets-banner h2 {
   margin: 0;
-  font: 700 21px Arial, Helvetica, sans-serif;
+  font:
+    700 21px Arial,
+    Helvetica,
+    sans-serif;
   letter-spacing: -0.7px;
 }
 
@@ -622,7 +637,9 @@ button:disabled {
   border-radius: 12px;
   text-align: left;
   text-decoration: none;
-  transition: transform 0.2s, border 0.2s;
+  transition:
+    transform 0.2s,
+    border 0.2s;
 }
 
 .service-card:hover {
@@ -849,7 +866,10 @@ button:disabled {
 .booking-card-main h2,
 .pet-detail-heading h2 {
   margin: 0 0 5px;
-  font: 700 14px Arial, Helvetica, sans-serif;
+  font:
+    700 14px Arial,
+    Helvetica,
+    sans-serif;
 }
 
 .provider-title p {
@@ -1134,7 +1154,10 @@ button:disabled {
 .empty-page h2 {
   margin: 13px 0 4px;
   color: var(--ink);
-  font: 700 20px Arial, Helvetica, sans-serif;
+  font:
+    700 20px Arial,
+    Helvetica,
+    sans-serif;
 }
 
 .empty-page p {
@@ -1165,7 +1188,10 @@ button:disabled {
 .form-panel h2,
 .detail-panel h2 {
   margin: 0;
-  font: 700 20px Arial, Helvetica, sans-serif;
+  font:
+    700 20px Arial,
+    Helvetica,
+    sans-serif;
 }
 
 .close-button {
@@ -1570,7 +1596,10 @@ button:disabled {
 
 .booking-form-intro h1 {
   margin: 0;
-  font: 700 clamp(25px, 3vw, 36px) Arial, Helvetica, sans-serif;
+  font:
+    700 clamp(25px, 3vw, 36px) Arial,
+    Helvetica,
+    sans-serif;
   letter-spacing: -1px;
 }
 
@@ -1855,7 +1884,10 @@ button:disabled {
 
 .provider-detail-hero h1 {
   margin: 13px 0 6px;
-  font: 700 28px Arial, Helvetica, sans-serif;
+  font:
+    700 28px Arial,
+    Helvetica,
+    sans-serif;
 }
 
 .provider-detail-hero > div:last-child > p {
@@ -2134,7 +2166,10 @@ button:disabled {
 
 .auth-card h1 {
   margin: 0;
-  font: 700 30px Arial, Helvetica, sans-serif;
+  font:
+    700 30px Arial,
+    Helvetica,
+    sans-serif;
   letter-spacing: -1px;
 }
 
@@ -2587,5 +2622,224 @@ button:disabled {
 
   .auth-brand {
     margin-bottom: 35px;
+  }
+}
+
+.home-visit-map-panel {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 14px;
+  background: #fbfaf7;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.home-visit-map {
+  width: 100%;
+  height: 320px;
+  border-radius: 8px;
+}
+
+.inline-form-control {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.inline-form-control input {
+  flex: 1;
+}
+
+.provider-promotion-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.9fr) minmax(320px, 1.1fr);
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.promotion-form {
+  display: grid;
+  gap: 14px;
+}
+
+.promotion-form h2 {
+  margin-bottom: 2px;
+}
+
+.promotion-form fieldset {
+  display: grid;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+}
+
+.promotion-form legend {
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.service-checkbox-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.service-checkbox-grid label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+}
+
+.promotion-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.promotion-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 13px;
+  background: #fbfaf7;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+}
+
+.promotion-card strong,
+.promotion-card p,
+.promotion-card small {
+  display: block;
+}
+
+.promotion-card p {
+  margin: 4px 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.promotion-card small,
+.promotion-discount {
+  color: #43815b;
+  font-size: 11px;
+}
+
+.vaccination-document-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  grid-column: 1 / -1;
+}
+
+.vaccination-document-actions label {
+  cursor: pointer;
+}
+
+@media (max-width: 820px) {
+  .provider-promotion-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.checkout-layout {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.8fr) minmax(360px, 1.2fr);
+  gap: 18px;
+  max-width: 980px;
+  margin-top: 24px;
+}
+
+.checkout-summary,
+.checkout-form-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.checkout-summary h2 {
+  margin: 0;
+}
+
+.checkout-total {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.checkout-total strong {
+  color: var(--ink);
+  font-size: 28px;
+}
+
+.checkout-countdown {
+  display: grid;
+  gap: 3px;
+  min-width: 125px;
+  padding: 12px 16px;
+  text-align: center;
+  background: #fff4df;
+  border: 1px solid #efd7a6;
+  border-radius: 10px;
+}
+
+.checkout-countdown strong {
+  color: #a36312;
+  font-size: 22px;
+  letter-spacing: 0.06em;
+}
+
+.checkout-form-panel .form-section-title {
+  margin-bottom: 2px;
+}
+
+.success-page {
+  display: grid;
+  place-items: center;
+  min-height: 65vh;
+}
+
+.success-card {
+  display: grid;
+  justify-items: center;
+  max-width: 620px;
+  text-align: center;
+}
+
+.success-card h1 {
+  margin: 0;
+}
+
+.success-icon {
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  margin-bottom: 12px;
+  color: #fff;
+  background: #43815b;
+  border-radius: 50%;
+}
+
+.success-reference {
+  padding: 10px 14px;
+  color: var(--muted);
+  background: #f7f4ee;
+  border-radius: 8px;
+}
+
+@media (max-width: 820px) {
+  .checkout-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .checkout-countdown {
+    justify-self: start;
   }
 }

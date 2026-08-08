@@ -42,6 +42,13 @@ export const serviceCatalog: Array<{
     emoji: "🏠",
     color: "peach",
   },
+  {
+    id: "cleaning",
+    label: "Limpieza",
+    shortLabel: "Limpieza",
+    emoji: "🧼",
+    color: "mint",
+  },
 ];
 
 export const speciesLabels: Record<PetSpecies, string> = {
@@ -52,7 +59,7 @@ export const speciesLabels: Record<PetSpecies, string> = {
 };
 
 export const statusLabels: Record<BookingStatus, string> = {
-  pending: "Pendiente",
+  pending: "Pendiente de pago",
   confirmed: "Confirmada",
   rejected: "Rechazada",
   "in-progress": "En progreso",
@@ -66,6 +73,7 @@ export const servicePrices: Record<ServiceType, number> = {
   walking: 30000,
   boarding: 60000,
   "home-visit": 60000,
+  cleaning: 45000,
 };
 
 export function serviceLabel(serviceType: string) {

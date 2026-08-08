@@ -5,7 +5,8 @@ export type ServiceType =
   | "walking"
   | "boarding"
   | "veterinary"
-  | "home-visit";
+  | "home-visit"
+  | "cleaning";
 export type VisitMode = "pickup-dropoff" | "home-visit" | "at-location";
 export type PaymentMethod = "online" | "at-location";
 export type BookingStatus =
@@ -72,6 +73,9 @@ export interface VaccinationRecord {
   administeredAt: string;
   expiresAt?: string;
   documentUrl?: string;
+  documentMimeType?: string;
+  documentName?: string;
+  documentSize?: number;
 }
 
 export interface Pet {
@@ -87,6 +91,7 @@ export interface Pet {
 
 export interface Payment {
   id: string;
+  userId?: string;
   method: PaymentMethod;
   status: "paid" | "pending" | "failed";
   amount: number;
@@ -94,13 +99,17 @@ export interface Payment {
   provider: "mock";
   reference: string;
   createdAt: string;
+  paidAt?: string;
+  failureReason?: string;
+  attempts: number;
 }
 
 export interface Promotion {
   id: string;
   name: string;
   description: string;
-  discountPercent: number;
+  discountType: "percent" | "fixed";
+  discountValue: number;
   scope: "national" | "local";
   city?: string;
   providerId?: string;
@@ -119,16 +128,64 @@ export interface Booking {
   visitMode: VisitMode;
   scheduledAt: string;
   address?: string;
+  latitude?: number;
+  longitude?: number;
+  addressReference?: string;
   notes?: string;
   status: BookingStatus;
   total: number;
+  originalTotal: number;
+  discountAmount: number;
   currency: string;
   paymentMethod: PaymentMethod;
   paymentId: string;
+  paymentExpiresAt?: string;
+  idempotencyKey?: string;
   promotionId?: string;
   rejectionReason?: string;
   createdAt: string;
   payment?: Payment;
+}
+
+export interface BookingQuote {
+  currency: string;
+  serviceType: ServiceType;
+  originalTotal: number;
+  discountAmount: number;
+  total: number;
+  promotion?: Promotion;
+  vaccinationRequired: boolean;
+  vaccinationValid: boolean;
+  vaccinationMessage?: string;
+}
+
+export interface MockPaymentCard {
+  cardholderName: string;
+  cardNumber: string;
+  expiryMonth: number;
+  expiryYear: number;
+  cvv: string;
+}
+
+export type CheckoutFlowStatus =
+  "idle" | "loading" | "processing" | "failed" | "expired";
+
+export interface BookingPaymentResult {
+  booking: Booking;
+  payment: Payment;
+}
+
+export interface MapGeocodeResult {
+  address: string;
+  city: string;
+  latitude: number;
+  longitude: number;
+  provider: string;
+}
+
+export interface MapConfig {
+  provider: "google-maps";
+  apiKey: string;
 }
 
 export interface Availability {

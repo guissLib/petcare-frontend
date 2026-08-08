@@ -8,7 +8,10 @@ import { petcareApi } from "@/lib/api";
 import { formatShortDate, speciesLabels } from "@/lib/format";
 import type { Pet } from "@/types/petcare";
 import { PetForm } from "@/components/pets/pet-form";
-import { VaccinationForm } from "@/components/pets/vaccination-form";
+import {
+  VaccinationDocumentActions,
+  VaccinationForm,
+} from "@/components/pets/vaccination-form";
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/states";
 
 function petEmoji(species: Pet["species"]) {
@@ -106,7 +109,7 @@ export function PetsView() {
       {pets.length > 0 && (
         <div className="pet-list pet-list-detailed">
           {pets.map((pet) => (
-            <article className="pet-detail-card" key={pet.id}>
+            <article className="pet-detail-card" id={`pet-${pet.id}`} key={pet.id}>
               <div className={`pet-card-avatar pet-${pet.species}`}>
                 {petEmoji(pet.species)}
               </div>
@@ -149,9 +152,19 @@ export function PetsView() {
                             <small>Vence {formatShortDate(record.expiresAt)}</small>
                           )}
                           {record.documentUrl && (
-                            <a href={record.documentUrl} target="_blank" rel="noreferrer">
-                              Ver documento
-                            </a>
+                            <VaccinationDocumentActions
+                              petId={pet.id}
+                              record={record}
+                              onUpdated={(updatedPet) =>
+                                setPets((current) =>
+                                  current.map((currentPet) =>
+                                    currentPet.id === updatedPet.id
+                                      ? updatedPet
+                                      : currentPet,
+                                  ),
+                                )
+                              }
+                            />
                           )}
                         </div>
                       ))}

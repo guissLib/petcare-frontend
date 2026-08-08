@@ -4,12 +4,13 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Icon } from "@/components/icon";
 import { petcareApi } from "@/lib/api";
-import { formatShortDate, serviceCatalog } from "@/lib/format";
-import type { Availability, Provider } from "@/types/petcare";
+import { formatCurrency, formatShortDate, serviceCatalog } from "@/lib/format";
+import type { Availability, Promotion, Provider } from "@/types/petcare";
 import { ErrorState, LoadingState } from "@/components/ui/states";
 
 export function ProviderDetailView({ providerId }: { providerId: string }) {
   const [provider, setProvider] = useState<Provider | null>(null);
+  const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [availability, setAvailability] = useState<Availability | null>(null);
   const [date, setDate] = useState(() => {
     const tomorrow = new Date();
@@ -25,7 +26,12 @@ export function ProviderDetailView({ providerId }: { providerId: string }) {
     setLoading(true);
     setError("");
     try {
-      setProvider(await petcareApi.getProvider(providerId));
+      const nextProvider = await petcareApi.getProvider(providerId);
+      const nextPromotions = await petcareApi.listPromotions({
+        providerId,
+      });
+      setProvider(nextProvider);
+      setPromotions(nextPromotions);
     } catch (cause) {
       setError(
         cause instanceof Error
@@ -65,9 +71,12 @@ export function ProviderDetailView({ providerId }: { providerId: string }) {
 
   const services = useMemo(
     () =>
-      provider?.services.map(
-        (item) => serviceCatalog.find((service) => service.id === item) ?? null,
-      ).filter(Boolean),
+      provider?.services
+        .map(
+          (item) =>
+            serviceCatalog.find((service) => service.id === item) ?? null,
+        )
+        .filter(Boolean),
     [provider],
   );
 
@@ -82,7 +91,10 @@ export function ProviderDetailView({ providerId }: { providerId: string }) {
   if (error || !provider) {
     return (
       <main className="workspace-page">
-        <ErrorState message={error || "Proveedor no encontrado."} onRetry={() => void loadProvider()} />
+        <ErrorState
+          message={error || "Proveedor no encontrado."}
+          onRetry={() => void loadProvider()}
+        />
         <Link className="text-button back-link" href="/providers">
           <span aria-hidden="true">←</span> Volver a proveedores
         </Link>
@@ -125,16 +137,51 @@ export function ProviderDetailView({ providerId }: { providerId: string }) {
           <p className="eyebrow">SERVICIOS</p>
           <h2>Cuidados disponibles</h2>
           <div className="detail-service-list">
-            {services?.map((service) => service && (
-              <div className={`detail-service ${service.color}`} key={service.id}>
-                <span>{service.emoji}</span>
-                <strong>{service.label}</strong>
-              </div>
-            ))}
+            {services?.map(
+              (service) =>
+                service && (
+                  <div
+                    className={`detail-service ${service.color}`}
+                    key={service.id}
+                  >
+                    <span>{service.emoji}</span>
+                    <strong>{service.label}</strong>
+                  </div>
+                ),
+            )}
           </div>
-          <Link className="primary-button full-button" href={`/bookings/new?providerId=${provider.id}`}>
+          <Link
+            className="primary-button full-button"
+            href={`/bookings/new?providerId=${provider.id}`}
+          >
             Elegir este proveedor <Icon name="arrow" />
           </Link>
+        </section>
+
+        <section className="detail-panel">
+          <p className="eyebrow">PROMOCIONES</p>
+          <h2>Precios especiales</h2>
+          {promotions.length ? (
+            <div className="promotion-list">
+              {promotions.map((promotion) => (
+                <article className="promotion-card" key={promotion.id}>
+                  <div>
+                    <strong>{promotion.name}</strong>
+                    <p>{promotion.description}</p>
+                  </div>
+                  <span className="promotion-discount">
+                    {promotion.discountType === "percent"
+                      ? `-${promotion.discountValue}%`
+                      : `-${formatCurrency(promotion.discountValue)}`}
+                  </span>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <p className="inline-muted">
+              Este proveedor no tiene promociones activas para mostrar.
+            </p>
+          )}
         </section>
 
         <section className="detail-panel availability-panel">
@@ -156,18 +203,30 @@ export function ProviderDetailView({ providerId }: { providerId: string }) {
           </label>
           {availabilityLoading && <LoadingState label="Consultando…" />}
           {!availabilityLoading && availabilityError && (
-            <ErrorState message={availabilityError} onRetry={() => void loadAvailability()} />
+            <ErrorState
+              message={availabilityError}
+              onRetry={() => void loadAvailability()}
+            />
           )}
           {!availabilityLoading && !availabilityError && availability && (
             <>
-              <div className={availability.available ? "availability-ok" : "availability-full"}>
+              <div
+                className={
+                  availability.available
+                    ? "availability-ok"
+                    : "availability-full"
+                }
+              >
                 <span>{availability.available ? "✓" : "!"}</span>
                 <div>
                   <strong>
-                    {availability.available ? "Hay disponibilidad" : "Cupo completo"}
+                    {availability.available
+                      ? "Hay disponibilidad"
+                      : "Cupo completo"}
                   </strong>
                   <small>
-                    {availability.booked} de {availability.capacity} espacios ocupados
+                    {availability.booked} de {availability.capacity} espacios
+                    ocupados
                   </small>
                 </div>
               </div>
@@ -180,7 +239,8 @@ export function ProviderDetailView({ providerId }: { providerId: string }) {
                   ))
                 ) : (
                   <p className="inline-muted">
-                    No hay horarios configurados para el {formatShortDate(date)}.
+                    No hay horarios configurados para el {formatShortDate(date)}
+                    .
                   </p>
                 )}
               </div>

@@ -2,6 +2,11 @@ import type {
   Availability,
   AuthResponse,
   Booking,
+  BookingPaymentResult,
+  BookingQuote,
+  MapConfig,
+  MapGeocodeResult,
+  MockPaymentCard,
   Notification,
   Payment,
   Pet,
@@ -37,19 +42,46 @@ export class ApiError extends Error {
   }
 }
 
+function requestHeaders(init?: RequestInit) {
+  const headers = new Headers(init?.headers);
+  const isFormData =
+    typeof FormData !== "undefined" && init?.body instanceof FormData;
+  if (!isFormData && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+  const accessToken = storedAccessToken();
+  if (accessToken && !headers.has("Authorization")) {
+    headers.set("Authorization", `Bearer ${accessToken}`);
+  }
+  return headers;
+}
+
+function errorMessage(body: unknown) {
+  if (
+    body &&
+    typeof body === "object" &&
+    "message" in body &&
+    typeof body.message === "string"
+  ) {
+    return body.message;
+  }
+  if (
+    body &&
+    typeof body === "object" &&
+    "message" in body &&
+    Array.isArray(body.message)
+  ) {
+    return body.message.join(", ");
+  }
+  return "La solicitud no pudo completarse.";
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;
   try {
-    const accessToken = storedAccessToken();
     response = await fetch(`${API_URL}${path}`, {
       ...init,
-      headers: {
-        "Content-Type": "application/json",
-        ...(accessToken
-          ? { Authorization: `Bearer ${accessToken}` }
-          : {}),
-        ...init?.headers,
-      },
+      headers: requestHeaders(init),
     });
   } catch {
     throw new ApiError(
@@ -60,15 +92,28 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   const body = await response.json().catch(() => null);
   if (!response.ok) {
-    const message =
-      body && typeof body.message === "string"
-        ? body.message
-        : Array.isArray(body?.message)
-          ? body.message.join(", ")
-          : "La solicitud no pudo completarse.";
-    throw new ApiError(message, response.status);
+    throw new ApiError(errorMessage(body), response.status);
   }
   return body as T;
+}
+
+async function requestBlob(path: string) {
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      headers: requestHeaders(),
+    });
+  } catch {
+    throw new ApiError(
+      "No se pudo conectar con PetCare. Verifica que el backend esté activo.",
+      0,
+    );
+  }
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    throw new ApiError(errorMessage(body), response.status);
+  }
+  return response.blob();
 }
 
 function queryString(values: Record<string, string | undefined>) {
@@ -79,6 +124,22 @@ function queryString(values: Record<string, string | undefined>) {
   const query = params.toString();
   return query ? `?${query}` : "";
 }
+
+type BookingPayload = {
+  petId: string;
+  providerId: string;
+  serviceType: ServiceType;
+  visitMode: Booking["visitMode"];
+  scheduledAt: string;
+  paymentMethod: Payment["method"];
+  paymentId?: string;
+  idempotencyKey?: string;
+  address?: string;
+  latitude?: number;
+  longitude?: number;
+  addressReference?: string;
+  notes?: string;
+};
 
 export const petcareApi = {
   login(payload: { email: string; password: string }) {
@@ -148,19 +209,29 @@ export const petcareApi = {
     });
   },
 
-  addVaccination(
-    petId: string,
-    payload: {
-      vaccine: string;
-      administeredAt: string;
-      expiresAt?: string;
-      documentUrl?: string;
-    },
-  ) {
+  addVaccination(petId: string, payload: FormData) {
     return request<Pet>(`/pets/${petId}/vaccinations`, {
       method: "POST",
-      body: JSON.stringify(payload),
+      body: payload,
     });
+  },
+
+  replaceVaccinationDocument(
+    petId: string,
+    vaccinationId: string,
+    payload: FormData,
+  ) {
+    return request<Pet>(
+      `/pets/${petId}/vaccinations/${vaccinationId}/document`,
+      {
+        method: "PUT",
+        body: payload,
+      },
+    );
+  },
+
+  async downloadVaccinationDocument(petId: string, vaccinationId: string) {
+    return requestBlob(`/pets/${petId}/vaccinations/${vaccinationId}/document`);
   },
 
   listBookings(filters?: {
@@ -186,21 +257,28 @@ export const petcareApi = {
     });
   },
 
-  createBooking(
-    userId: string,
-    payload: {
-      petId: string;
-      providerId: string;
-      serviceType: ServiceType;
-      visitMode: Booking["visitMode"];
-      scheduledAt: string;
-      paymentMethod: Payment["method"];
-      total: number;
-      paymentId: string;
-      address?: string;
-      notes?: string;
-    },
-  ) {
+  getBooking(bookingId: string) {
+    return request<Booking>(`/bookings/${bookingId}`);
+  },
+
+  payBooking(bookingId: string, card: MockPaymentCard) {
+    return request<BookingPaymentResult>(
+      `/bookings/${bookingId}/payments/mock`,
+      {
+        method: "POST",
+        body: JSON.stringify(card),
+      },
+    );
+  },
+
+  quoteBooking(userId: string, payload: BookingPayload) {
+    return request<BookingQuote>(`/users/${userId}/bookings/quote`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  createBooking(userId: string, payload: BookingPayload) {
     return request<Booking>(`/users/${userId}/bookings`, {
       method: "POST",
       body: JSON.stringify(payload),
@@ -234,11 +312,50 @@ export const petcareApi = {
     );
   },
 
+  listOwnPromotions() {
+    return request<Promotion[]>("/promotions/mine");
+  },
+
+  createPromotion(payload: {
+    name: string;
+    description: string;
+    discountType: Promotion["discountType"];
+    discountValue: number;
+    scope: Promotion["scope"];
+    city?: string;
+    serviceTypes?: ServiceType[];
+    startsAt: string;
+    endsAt: string;
+  }) {
+    return request<Promotion>("/promotions", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  updatePromotion(promotionId: string, payload: Partial<Promotion>) {
+    return request<Promotion>(`/promotions/${promotionId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  setPromotionActive(promotionId: string, active: boolean) {
+    return request<Promotion>(`/promotions/${promotionId}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ active }),
+    });
+  },
+
   geocode(address: string, city: string) {
-    return request<{ latitude: number; longitude: number }>("/maps/geocode", {
+    return request<MapGeocodeResult>("/maps/geocode", {
       method: "POST",
       body: JSON.stringify({ address, city }),
     });
+  },
+
+  mapConfig() {
+    return request<MapConfig>("/maps/config");
   },
 
   listNotifications(userId: string) {
